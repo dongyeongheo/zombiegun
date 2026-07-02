@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZOMBIEGUN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🧟</text></svg>">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; user-select: none; }
+  #canvas { display: block; }
+
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    pointer-events: none; z-index: 10;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.9);
+  }
+  #crosshair::before { width: 2px; height: 14px; left: -1px; top: -7px; }
+  #crosshair::after { width: 14px; height: 2px; left: -7px; top: -1px; }
+
+  .hud-panel {
+    position: fixed; z-index: 20; pointer-events: none;
+    color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+
+  #hud-topleft { top: 16px; left: 16px; }
+  #coin-display {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,0.45); padding: 8px 16px; border-radius: 8px;
+    font-size: 20px; font-weight: 700; color: #ffd24a;
+  }
+  #coin-display .coin-icon {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffe98a, #d4a017);
+    border: 2px solid #b8860b;
+  }
+
+  #hud-bottomleft { bottom: 20px; left: 20px; width: 280px; }
+  #hp-label { font-size: 13px; margin-bottom: 4px; opacity: 0.85; }
+  #hp-bar-bg {
+    height: 18px; background: rgba(0,0,0,0.55); border-radius: 9px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.25);
+  }
+  #hp-bar {
+    height: 100%; width: 100%; border-radius: 8px;
+    background: linear-gradient(90deg, #e0322d, #ff6b52);
+    transition: width 0.15s ease;
+  }
+  #armor-label { font-size: 12px; margin-top: 5px; color: #9fd4ff; }
+
+  #hud-bottomright { bottom: 20px; right: 20px; text-align: right; }
+  #weapon-name { font-size: 18px; font-weight: 700; }
+  #ammo-display { font-size: 30px; font-weight: 800; margin-top: 2px; }
+  #ammo-display .mag { color: #fff; }
+  #ammo-display .inf { color: #8ecae6; font-size: 20px; }
+
+  #reload-wrap {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    width: 220px; z-index: 20; display: none;
+  }
+  #reload-label { text-align: center; color: #ffd24a; font-size: 13px; font-weight: 700; margin-bottom: 4px; text-shadow: 0 1px 3px #000; }
+  #reload-bar-bg { height: 8px; background: rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
+  #reload-bar { height: 100%; width: 0%; background: #ffd24a; border-radius: 4px; }
+
+  #interact-hint {
+    position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); color: #fff; padding: 8px 18px; border-radius: 8px;
+    font-size: 15px; z-index: 20; display: none;
+  }
+  #interact-hint b { color: #ffd24a; }
+
+  #damage-vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 15;
+    box-shadow: inset 0 0 120px 40px rgba(255, 0, 0, 0.55);
+    opacity: 0; transition: opacity 0.4s;
+  }
+
+  #alert-banner {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+    background: rgba(180,30,30,0.85); color: #fff; padding: 10px 28px;
+    border-radius: 8px; font-size: 17px; font-weight: 700; z-index: 25; display: none;
+  }
+
+  #kill-feed {
+    position: fixed; top: 16px; right: 16px; z-index: 20; text-align: right;
+    pointer-events: none;
+  }
+  .kill-msg {
+    background: rgba(0,0,0,0.45); color: #ffd24a; padding: 5px 12px;
+    border-radius: 6px; margin-bottom: 5px; font-size: 14px; font-weight: 600;
+    animation: fadeout 2.5s forwards;
+  }
+  @keyframes fadeout { 0%,70% { opacity: 1; } 100% { opacity: 0; } }
+
+  .modal {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(18, 20, 26, 0.96); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; padding: 24px; z-index: 50; color: #fff;
+    display: none; max-height: 82vh; overflow-y: auto; min-width: 640px;
+  }
+  .modal h2 { font-size: 22px; margin-bottom: 4px; }
+  .modal .sub { font-size: 13px; opacity: 0.6; margin-bottom: 16px; }
+  .modal .close-hint { position: absolute; top: 20px; right: 24px; font-size: 13px; opacity: 0.55; }
+  .shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .shop-section-title { grid-column: 1 / -1; font-size: 15px; font-weight: 700; color: #ffd24a; margin-top: 10px; }
+  .item-card {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .item-card .info .name { font-weight: 700; font-size: 15px; }
+  .item-card .info .desc { font-size: 12px; opacity: 0.65; margin-top: 3px; }
+  .item-card button {
+    background: #2f6f3e; color: #fff; border: none; border-radius: 7px;
+    padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  .item-card button:hover { background: #3d8b50; }
+  .item-card button:disabled { background: #3a3d45; color: #888; cursor: default; }
+  .item-card button.equipped { background: #1d5c8f; }
+  .item-card button.equip-btn { background: #44507a; }
+  .item-card button.equip-btn:hover { background: #56659c; }
+
+  #death-screen {
+    position: fixed; inset: 0; background: rgba(90, 0, 0, 0.55); z-index: 60;
+    display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff;
+  }
+  #death-screen h1 { font-size: 64px; letter-spacing: 8px; }
+  #death-screen p { margin-top: 12px; font-size: 18px; opacity: 0.85; }
+
+  #start-screen {
+    position: fixed; inset: 0; background: radial-gradient(ellipse at center, #1a2318 0%, #0a0d09 100%);
+    z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff;
+  }
+  #start-screen h1 { font-size: 72px; letter-spacing: 10px; color: #c8e067; text-shadow: 0 0 30px rgba(150,200,60,0.4); }
+  #start-screen .tagline { margin-top: 8px; font-size: 16px; opacity: 0.7; }
+  #start-btn {
+    margin-top: 40px; background: #4d7c2a; color: #fff; border: none; border-radius: 10px;
+    padding: 16px 60px; font-size: 22px; font-weight: 800; cursor: pointer; letter-spacing: 2px;
+  }
+  #start-btn:hover { background: #5f9834; }
+  #start-screen .controls {
+    margin-top: 36px; font-size: 14px; opacity: 0.65; line-height: 1.9; text-align: center;
+  }
+  #start-screen .controls b { color: #ffd24a; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="crosshair"></div>
+<div id="damage-vignette"></div>
+
+<div id="hud-topleft" class="hud-panel">
+  <div id="coin-display"><span class="coin-icon"></span><span id="coin-count">0</span></div>
+</div>
+
+<div id="hud-bottomleft" class="hud-panel">
+  <div id="hp-label">HP <span id="hp-num">100</span> / 100</div>
+  <div id="hp-bar-bg"><div id="hp-bar"></div></div>
+  <div id="armor-label">방어 0%</div>
+</div>
+
+<div id="hud-bottomright" class="hud-panel">
+  <div id="weapon-name">도끼</div>
+  <div id="ammo-display"><span class="mag">—</span></div>
+</div>
+
+<div id="reload-wrap">
+  <div id="reload-label">재장전 중...</div>
+  <div id="reload-bar-bg"><div id="reload-bar"></div></div>
+</div>
+
+<div id="interact-hint"></div>
+<div id="alert-banner">⚠ 안전구역에 좀비 접근! 지원 병력 출동</div>
+<div id="kill-feed"></div>
+
+<div id="shop-modal" class="modal">
+  <span class="close-hint">E 또는 ESC로 닫기</span>
+  <h2>상점</h2>
+  <div class="sub">코인으로 무기와 방어구를 구매하세요</div>
+  <div id="shop-grid" class="shop-grid"></div>
+</div>
+
+<div id="inv-modal" class="modal">
+  <span class="close-hint">Tab 또는 ESC로 닫기</span>
+  <h2>인벤토리</h2>
+  <div class="sub">보유 장비를 클릭해서 장착</div>
+  <div id="inv-grid" class="shop-grid"></div>
+</div>
+
+<div id="death-screen">
+  <h1>사망</h1>
+  <p>3초 후 안전구역에서 부활합니다</p>
+</div>
+
+<div id="start-screen">
+  <h1>ZOMBIEGUN</h1>
+  <div class="tagline">좀비 서바이벌 시뮬레이터</div>
+  <button id="start-btn">게임 시작</button>
+  <div class="controls">
+    <b>WASD</b> 이동 · <b>마우스</b> 시점 · <b>좌클릭</b> 공격<br>
+    <b>Tab</b> 인벤토리 · <b>E</b> 상점 (상점 앞에서) · <b>1~7</b> 무기 전환
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
