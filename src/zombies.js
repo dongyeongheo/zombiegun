@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ZOMBIES, ZOMBIE_CAP, SPAWN_INTERVAL, ATTACK_RANGE, LOSE_SIGHT_TIME, MAP_HALF, SAFE_HALF, GATE_WIDTH, GATE_Z } from './config.js';
+import { ZOMBIES, ZOMBIE_CAP, SPAWN_INTERVAL, INITIAL_SPAWNS, ATTACK_RANGE, LOSE_SIGHT_TIME, MAP_HALF, SAFE_HALF, GATE_WIDTH, GATE_Z } from './config.js';
 import { rand, randInt, distXZ, angleToXZ, inFov } from './utils.js';
 import { isInsideSafeZone } from './world.js';
 
@@ -80,10 +80,12 @@ function buildZombieModel(type) {
     }
   }
 
-  g.scale.setScalar(def.scale);
-
-  g.userData.limbs = { legL, legR, armL, armR };
-  return g;
+  g.rotation.y = Math.PI;
+  const outer = new THREE.Group();
+  outer.add(g);
+  outer.scale.setScalar(def.scale);
+  outer.userData.limbs = { legL, legR, armL, armR };
+  return outer;
 }
 
 function makeHpBar() {
@@ -319,15 +321,27 @@ export class ZombieManager {
     this.onZombieKilled = null;
   }
 
-  randomSpawnPos() {
+  randomSpawnPos(center) {
     let x, z;
     let tries = 0;
     do {
-      x = rand(-MAP_HALF + 20, MAP_HALF - 20);
-      z = rand(-MAP_HALF + 20, MAP_HALF - 20);
+      const ang = rand(0, Math.PI * 2);
+      const dist = rand(70, 160);
+      x = center.x + Math.sin(ang) * dist;
+      z = center.z + Math.cos(ang) * dist;
+      x = Math.max(-MAP_HALF + 20, Math.min(MAP_HALF - 20, x));
+      z = Math.max(-MAP_HALF + 20, Math.min(MAP_HALF - 20, z));
       tries++;
-    } while (Math.abs(x) < SAFE_HALF + 40 && Math.abs(z) < SAFE_HALF + 40 && tries < 30);
+    } while (Math.abs(x) < SAFE_HALF + 15 && Math.abs(z) < SAFE_HALF + 15 && tries < 30);
+    if (Math.abs(x) < SAFE_HALF + 15 && Math.abs(z) < SAFE_HALF + 15) {
+      x = SAFE_HALF + 40;
+      z = SAFE_HALF + 40;
+    }
     return { x, z };
+  }
+
+  warmup(center) {
+    for (let i = 0; i < INITIAL_SPAWNS; i++) this.spawnGroup(center);
   }
 
   spawn(type, x, z) {
@@ -336,13 +350,13 @@ export class ZombieManager {
     return zb;
   }
 
-  spawnGroup() {
+  spawnGroup(center) {
     const alive = this.zombies.filter(z => !z.dead).length;
     if (alive >= ZOMBIE_CAP) return;
     const room = ZOMBIE_CAP - alive;
 
     const roll = Math.random();
-    const { x, z } = this.randomSpawnPos();
+    const { x, z } = this.randomSpawnPos(center);
 
     if (roll < 0.12 && room >= 11) {
       const leader = this.spawn('leader', x, z);
@@ -369,11 +383,11 @@ export class ZombieManager {
     }
   }
 
-  update(dt, candidates, camera) {
+  update(dt, candidates, playerPos) {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = SPAWN_INTERVAL;
-      this.spawnGroup();
+      this.spawnGroup(playerPos);
     }
 
     for (let i = this.zombies.length - 1; i >= 0; i--) {

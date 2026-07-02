@@ -12,6 +12,21 @@ export class HUD {
     this.armorLabel = document.getElementById('armor-label');
     this.killFeed = document.getElementById('kill-feed');
     this.interactHint = document.getElementById('interact-hint');
+    this.compassArrow = document.getElementById('compass-arrow');
+    this.compassLabel = document.getElementById('compass-label');
+  }
+
+  updateCompass(player, gateX, gateZ, insideSafe) {
+    const dx = gateX - player.pos.x;
+    const dz = gateZ - player.pos.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const bearing = Math.atan2(dx, dz);
+    const facing = player.yaw + Math.PI;
+    let rel = bearing - facing;
+    while (rel > Math.PI) rel -= Math.PI * 2;
+    while (rel < -Math.PI) rel += Math.PI * 2;
+    this.compassArrow.style.transform = `rotate(${-rel * 180 / Math.PI}deg)`;
+    this.compassLabel.textContent = insideSafe ? '안전구역 내부' : `안전구역 입구 ${Math.round(dist)}m`;
   }
 
   update(player, inv, weapons) {

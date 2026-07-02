@@ -15,6 +15,8 @@ export class World {
     this.buildTents();
     this.buildShop();
     this.buildNature();
+    this.buildClouds();
+    this.buildGrass();
   }
 
   buildLights() {
@@ -156,45 +158,71 @@ export class World {
 
   buildTents() {
     const tentTex = canvasTentTexture();
-    const tentMat = new THREE.MeshLambertMaterial({ map: tentTex });
-    const darkMat = new THREE.MeshLambertMaterial({ color: 0x3a4230 });
+    const tentMat = new THREE.MeshLambertMaterial({ map: tentTex, side: THREE.DoubleSide });
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x424d35, side: THREE.DoubleSide });
+    const poleMat = new THREE.MeshLambertMaterial({ color: 0x4a4238 });
+    const doorMat = new THREE.MeshBasicMaterial({ color: 0x14170f });
 
     const positions = [
       [-38, 18], [-38, 0], [-38, -18],
       [38, 18], [38, 0], [38, -18],
     ];
 
+    const halfW = 2.4, apexH = 3.0, depth = 6.5;
+    const slope = Math.sqrt(halfW * halfW + apexH * apexH);
+    const tilt = Math.atan2(halfW, apexH);
+
+    const triShape = new THREE.Shape();
+    triShape.moveTo(-halfW, 0);
+    triShape.lineTo(halfW, 0);
+    triShape.lineTo(0, apexH);
+    triShape.closePath();
+
+    const doorShape = new THREE.Shape();
+    doorShape.moveTo(-halfW, 0);
+    doorShape.lineTo(halfW, 0);
+    doorShape.lineTo(0, apexH);
+    doorShape.closePath();
+    const doorHole = new THREE.Path();
+    doorHole.moveTo(-0.75, 0.01);
+    doorHole.lineTo(0.75, 0.01);
+    doorHole.lineTo(0, 1.9);
+    doorHole.closePath();
+    doorShape.holes.push(doorHole);
+
     for (const [x, z] of positions) {
       const tent = new THREE.Group();
 
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 7, 3, 1), tentMat);
-      body.rotation.z = Math.PI / 2;
-      body.rotation.x = Math.PI / 2;
-      body.position.y = 1.7;
-      body.scale.set(1, 1, 0.72);
-      body.castShadow = true;
-      tent.add(body);
+      for (const side of [-1, 1]) {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(0.1, slope + 0.25, depth), tentMat);
+        panel.position.set(side * halfW / 2, apexH / 2, 0);
+        panel.rotation.z = side * tilt;
+        panel.castShadow = true;
+        tent.add(panel);
+      }
 
-      const back = new THREE.Mesh(new THREE.CircleGeometry(3.4, 3), darkMat);
-      back.position.set(0, 1.7, -3.5);
-      back.scale.y = 0.72;
-      back.rotation.z = Math.PI;
+      const back = new THREE.Mesh(new THREE.ShapeGeometry(triShape), darkMat);
+      back.position.set(0, 0, -depth / 2);
       tent.add(back);
 
-      const doorFrame = new THREE.Mesh(new THREE.RingGeometry(1.2, 3.4, 3, 1), darkMat);
-      doorFrame.position.set(0, 1.7, 3.5);
-      doorFrame.scale.y = 0.72;
-      doorFrame.rotation.z = Math.PI;
-      tent.add(doorFrame);
+      const front = new THREE.Mesh(new THREE.ShapeGeometry(doorShape), darkMat);
+      front.position.set(0, 0, depth / 2);
+      tent.add(front);
 
-      const doorHole = new THREE.Mesh(
-        new THREE.CircleGeometry(1.2, 3),
-        new THREE.MeshBasicMaterial({ color: 0x14170f })
-      );
-      doorHole.position.set(0, 1.7, 3.49);
-      doorHole.scale.y = 0.72;
-      doorHole.rotation.z = Math.PI;
-      tent.add(doorHole);
+      const doorDark = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.9), doorMat);
+      doorDark.position.set(0, 0.95, depth / 2 - 0.06);
+      tent.add(doorDark);
+
+      const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, depth + 0.6, 6), poleMat);
+      ridge.rotation.x = Math.PI / 2;
+      ridge.position.y = apexH + 0.02;
+      tent.add(ridge);
+
+      for (const dz of [-depth / 2, depth / 2]) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, apexH, 6), poleMat);
+        pole.position.set(0, apexH / 2, dz);
+        tent.add(pole);
+      }
 
       tent.position.set(x, 0, z);
       tent.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -202,8 +230,60 @@ export class World {
 
       const doorDir = x < 0 ? 1 : -1;
       this.tentDoors.push(new THREE.Vector3(x + doorDir * 4.5, 0, z));
-      this.colliders.push({ x, z, r: 4.2 });
+      this.colliders.push({ x, z, r: 3.8 });
     }
+  }
+
+  buildClouds() {
+    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 12; i++) {
+      const cloud = new THREE.Group();
+      const puffs = 3 + Math.floor(rand(0, 3));
+      for (let p = 0; p < puffs; p++) {
+        const s = rand(7, 14);
+        const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 7, 5), cloudMat);
+        puff.position.set(rand(-14, 14), rand(-2, 2), rand(-7, 7));
+        puff.scale.y = 0.45;
+        cloud.add(puff);
+      }
+      cloud.position.set(rand(-MAP_HALF, MAP_HALF), rand(65, 95), rand(-MAP_HALF, MAP_HALF));
+      this.scene.add(cloud);
+    }
+  }
+
+  buildGrass() {
+    const bladeC = document.createElement('canvas');
+    bladeC.width = 32; bladeC.height = 64;
+    const bctx = bladeC.getContext('2d');
+    bctx.strokeStyle = '#5a7d3c';
+    bctx.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      bctx.beginPath();
+      bctx.moveTo(6 + i * 5, 64);
+      bctx.quadraticCurveTo(6 + i * 5 + rand(-6, 6), 30, 6 + i * 5 + rand(-9, 9), rand(4, 20));
+      bctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(bladeC);
+    tex.colorSpace = THREE.SRGBColorSpace;
+
+    const geo = new THREE.PlaneGeometry(1.4, 1.1);
+    geo.translate(0, 0.55, 0);
+    const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
+    const inst = new THREE.InstancedMesh(geo, mat, 900);
+    const dummy = new THREE.Object3D();
+    let placed = 0;
+    while (placed < 900) {
+      const x = rand(-MAP_HALF + 10, MAP_HALF - 10);
+      const z = rand(-MAP_HALF + 10, MAP_HALF - 10);
+      if (Math.abs(x) < SAFE_HALF + 3 && Math.abs(z) < SAFE_HALF + 3) continue;
+      dummy.position.set(x, 0, z);
+      dummy.rotation.y = rand(0, Math.PI);
+      dummy.scale.setScalar(rand(0.7, 1.5));
+      dummy.updateMatrix();
+      inst.setMatrixAt(placed, dummy.matrix);
+      placed++;
+    }
+    this.scene.add(inst);
   }
 
   buildShop() {

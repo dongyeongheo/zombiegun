@@ -13,6 +13,8 @@ export class Player {
     this.timeSinceDamage = 99;
     this.keys = {};
     this.deathTimer = 0;
+    this.velY = 0;
+    this.grounded = true;
 
     document.addEventListener('keydown', e => { this.keys[e.code] = true; });
     document.addEventListener('keyup', e => { this.keys[e.code] = false; });
@@ -58,6 +60,8 @@ export class Player {
     this.alive = true;
     this.hp = PLAYER.maxHp;
     this.pos.set(0, PLAYER.height, 10);
+    this.velY = 0;
+    this.grounded = true;
     this.timeSinceDamage = 99;
     document.getElementById('death-screen').style.display = 'none';
     document.querySelector('#canvas').requestPointerLock?.();
@@ -78,14 +82,30 @@ export class Player {
     if (!uiOpen) {
       const forward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
       const strafe = (this.keys['KeyD'] ? 1 : 0) - (this.keys['KeyA'] ? 1 : 0);
+      const speed = (this.keys['ShiftLeft'] || this.keys['ShiftRight']) ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
       if (forward || strafe) {
         const len = Math.sqrt(forward * forward + strafe * strafe);
         const f = forward / len, s = strafe / len;
         const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-        this.pos.x += (-sin * f + cos * s) * PLAYER.speed * dt;
-        this.pos.z += (-cos * f - sin * s) * PLAYER.speed * dt;
+        this.pos.x += (-sin * f + cos * s) * speed * dt;
+        this.pos.z += (-cos * f - sin * s) * speed * dt;
+      }
+
+      if (this.keys['Space'] && this.grounded) {
+        this.velY = PLAYER.jumpVel;
+        this.grounded = false;
       }
       this.world.resolveCollision(this.pos, PLAYER.radius);
+    }
+
+    if (!this.grounded) {
+      this.velY -= PLAYER.gravity * dt;
+      this.pos.y += this.velY * dt;
+      if (this.pos.y <= PLAYER.height) {
+        this.pos.y = PLAYER.height;
+        this.velY = 0;
+        this.grounded = true;
+      }
     }
 
     this.camera.position.copy(this.pos);

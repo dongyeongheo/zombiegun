@@ -6,7 +6,10 @@ export const FENCE_HEIGHT = 4;
 
 export const PLAYER = {
   maxHp: 100,
-  speed: 10,
+  walkSpeed: 5,
+  sprintSpeed: 10,
+  jumpVel: 8,
+  gravity: 24,
   height: 1.7,
   radius: 0.6,
   regenDelay: 5,
@@ -43,7 +46,8 @@ export const ZOMBIES = {
 };
 
 export const ZOMBIE_CAP = 60;
-export const SPAWN_INTERVAL = 2.5;
+export const SPAWN_INTERVAL = 2;
+export const INITIAL_SPAWNS = 14;
 export const ATTACK_RANGE = 2.4;
 export const LOSE_SIGHT_TIME = 4;
 

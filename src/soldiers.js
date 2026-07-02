@@ -76,10 +76,13 @@ function buildSoldierModel(isSniper) {
   }
   gun.position.set(0.2, 1.45, -0.45);
   g.add(gun);
-  g.userData.gun = gun;
-  g.userData.limbs = { legL, legR };
 
-  return g;
+  g.rotation.y = Math.PI;
+  const outer = new THREE.Group();
+  outer.add(g);
+  outer.userData.gun = gun;
+  outer.userData.limbs = { legL, legR };
+  return outer;
 }
 
 class Soldier {

@@ -9,8 +9,9 @@ import { Inventory } from './inventory.js';
 import { Shop } from './shop.js';
 import { HUD } from './hud.js';
 import { Effects } from './effects.js';
-import { WEAPON_ORDER } from './config.js';
+import { WEAPON_ORDER, GATE_Z } from './config.js';
 import { randInt, distXZ } from './utils.js';
+import { isInsideSafeZone } from './world.js';
 
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -18,6 +19,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 800);
@@ -123,6 +126,7 @@ let started = false;
 document.getElementById('start-btn').addEventListener('click', () => {
   started = true;
   document.getElementById('start-screen').style.display = 'none';
+  zombieManager.warmup(player.pos);
   canvas.requestPointerLock?.();
 });
 
@@ -149,11 +153,17 @@ function animate() {
   world.updateSun(player.pos);
 
   const moving = !ui && (player.keys['KeyW'] || player.keys['KeyA'] || player.keys['KeyS'] || player.keys['KeyD']);
+  const sprinting = moving && (player.keys['ShiftLeft'] || player.keys['ShiftRight']);
+  const targetFov = sprinting ? 82 : 75;
+  if (Math.abs(camera.fov - targetFov) > 0.1) {
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 8);
+    camera.updateProjectionMatrix();
+  }
   weapons.update(dt, zombieManager, ui, player.alive, !!moving);
 
   const soldierCandidates = soldierManager.getVisibleSoldiers();
   const candidates = player.alive ? [playerCandidate, ...soldierCandidates] : soldierCandidates;
-  zombieManager.update(dt, candidates, camera);
+  zombieManager.update(dt, candidates, player.pos);
   soldierManager.update(dt, zombieManager.zombies);
 
   coinManager.update(dt, player.pos, n => {
@@ -169,6 +179,7 @@ function animate() {
 
   effects.update(dt);
   hud.update(player, inventory, weapons);
+  hud.updateCompass(player, 0, GATE_Z + 4, isInsideSafeZone(player.pos));
 
   renderer.render(scene, camera);
 }
