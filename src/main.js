@@ -48,10 +48,9 @@ inventory.onEquipWeapon = key => weapons.equip(key);
 weapons.equip(inventory.equippedWeapon);
 
 zombieManager.onZombieKilled = z => {
-  if (!z.lastHitByPlayer) return;
-  const coins = randInt(z.def.coin[0], z.def.coin[1]);
-  inventory.addCoins(coins);
-  hud.killMessage(z.def.name, coins);
+  const total = randInt(z.def.coin[0], z.def.coin[1]);
+  coinManager.dropBurst(z.group.position, total);
+  if (z.lastHitByPlayer) hud.killMessage(z.def.name, total);
 };
 
 const playerCandidate = {
@@ -105,7 +104,7 @@ let nearShop = false;
 
 document.addEventListener('keydown', e => {
   if (!started) return;
-  if (e.code === 'Tab') {
+  if (e.code === 'Tab' || e.code === 'KeyI') {
     e.preventDefault();
     toggleInventory();
   } else if (e.code === 'KeyE') {

@@ -118,11 +118,18 @@ class Soldier {
   get dmg() { return this.isSniper ? SOLDIER.sniperDamage : SOLDIER.arDamage; }
 
   findTarget(zombies) {
-    let best = null, bestD = this.range;
+    let best = null, bestScore = Infinity;
     for (const z of zombies) {
       if (z.dead) continue;
       const d = distXZ(this.group.position, z.group.position);
-      if (d < bestD) { best = z; bestD = d; }
+      const intruder = isInsideSafeZone(z.group.position) || distToSafeZone(z.group.position) < 10;
+      if (this.role === 'emergency') {
+        if (d > this.range && !intruder) continue;
+      } else {
+        if (d > this.range) continue;
+      }
+      const score = d - (intruder ? 1000 : 0);
+      if (score < bestScore) { best = z; bestScore = score; }
     }
     this.target = best;
   }
