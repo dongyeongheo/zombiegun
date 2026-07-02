@@ -79,6 +79,9 @@ export class CoinManager {
     const t = performance.now() * 0.002;
     for (let i = this.coins.length - 1; i >= 0; i--) {
       const c = this.coins[i];
+      const viewD = distXZ(c.position, playerPos);
+      c.visible = viewD < 180;
+      if (!c.visible && !c.userData.drop) continue;
       c.rotation.y = t * 1.5 + c.userData.phase;
 
       if (c.userData.drop) {

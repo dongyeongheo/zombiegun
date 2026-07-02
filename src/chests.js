@@ -83,8 +83,9 @@ export class ChestManager {
     return total;
   }
 
-  update(dt) {
+  update(dt, playerPos) {
     for (const c of this.chests) {
+      if (playerPos) c.group.visible = distXZ(c.group.position, playerPos) < 220;
       if (!c.opened) continue;
       if (c.lid.rotation.x > c.lidTarget) {
         c.lid.rotation.x = Math.max(c.lidTarget, c.lid.rotation.x - dt * 5);

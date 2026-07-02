@@ -18,14 +18,14 @@ import { isInsideSafeZone } from './world.js';
 const canvas = document.getElementById('canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 800);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 340);
 scene.add(camera);
 
 window.addEventListener('resize', () => {
@@ -35,6 +35,7 @@ window.addEventListener('resize', () => {
 });
 
 const world = new World(scene);
+world.freezeStatics(camera);
 const effects = new Effects(scene);
 const player = new Player(camera, world);
 const inventory = new Inventory();
@@ -153,6 +154,8 @@ canvas.addEventListener('click', () => {
 
 window.__debug = { player, zombieManager };
 
+const frustum = new THREE.Frustum();
+const projScreenMatrix = new THREE.Matrix4();
 const clock = new THREE.Clock();
 
 function animate() {
@@ -178,15 +181,18 @@ function animate() {
   }
   weapons.update(dt, zombieManager, ui, player.alive, !!moving);
 
+  projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  frustum.setFromProjectionMatrix(projScreenMatrix);
+
   const soldierCandidates = soldierManager.getVisibleSoldiers();
   const candidates = player.alive ? [playerCandidate, ...soldierCandidates] : soldierCandidates;
-  zombieManager.update(dt, candidates, player.pos);
+  zombieManager.update(dt, candidates, player.pos, frustum);
   soldierManager.update(dt, zombieManager.zombies);
 
   coinManager.update(dt, player.pos, n => {
     inventory.addCoins(n);
   });
-  chestManager.update(dt);
+  chestManager.update(dt, player.pos);
   villagerManager.update(dt);
 
   nearShop = distXZ(player.pos, world.shopPos) < 8;

@@ -27,24 +27,34 @@ export class World {
     const sun = new THREE.DirectionalLight(0xfff2dc, 1.6);
     sun.position.set(80, 120, 60);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -110;
-    sun.shadow.camera.right = 110;
-    sun.shadow.camera.top = 110;
-    sun.shadow.camera.bottom = -110;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -65;
+    sun.shadow.camera.right = 65;
+    sun.shadow.camera.top = 65;
+    sun.shadow.camera.bottom = -65;
     sun.shadow.camera.far = 400;
     sun.shadow.bias = -0.0004;
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sun = sun;
 
-    this.scene.fog = new THREE.Fog(0xb8c9d4, 120, 420);
+    this.scene.fog = new THREE.Fog(0xb8c9d4, 100, 310);
     this.scene.background = new THREE.Color(0x9fb8cc);
   }
 
   updateSun(playerPos) {
     this.sun.position.set(playerPos.x + 80, 120, playerPos.z + 60);
     this.sun.target.position.set(playerPos.x, 0, playerPos.z);
+  }
+
+  freezeStatics(camera) {
+    for (const c of this.scene.children) {
+      if (c === this.sun || c === this.sun.target || c === camera || c.isLight) continue;
+      c.traverse(o => {
+        o.updateMatrixWorld(true);
+        o.matrixAutoUpdate = false;
+      });
+    }
   }
 
   buildGround() {

@@ -412,12 +412,14 @@ export class ZombieManager {
     }
   }
 
-  update(dt, candidates, playerPos) {
+  update(dt, candidates, playerPos, frustum) {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = SPAWN_INTERVAL;
       for (let i = 0; i < SPAWNS_PER_TICK; i++) this.spawnGroup(playerPos);
     }
+
+    const sphere = this._cullSphere || (this._cullSphere = new THREE.Sphere());
 
     for (let i = this.zombies.length - 1; i >= 0; i--) {
       const z = this.zombies[i];
@@ -434,6 +436,19 @@ export class ZombieManager {
         this.zombies.splice(i, 1);
         continue;
       }
+
+      if (frustum) {
+        if (d > 240) {
+          z.group.visible = false;
+        } else if (d < 20) {
+          z.group.visible = true;
+        } else {
+          sphere.center.set(z.group.position.x, 1.3, z.group.position.z);
+          sphere.radius = 2.6 * z.def.scale;
+          z.group.visible = frustum.intersectsSphere(sphere);
+        }
+      }
+
       z.update(dt, candidates, this.world, d < 130);
     }
   }
