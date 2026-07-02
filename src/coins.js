@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COIN_MAX, COIN_RESPAWN, COIN_PICKUP_RADIUS, MAP_HALF, SAFE_HALF } from './config.js';
+import { COIN_MAX, COIN_RESPAWN, COIN_PICKUP_RADIUS, FIELD_COIN_VALUE, MAP_HALF, SAFE_HALF } from './config.js';
 import { rand, randInt, distXZ } from './utils.js';
 
 const coinGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.1, 12);
@@ -43,12 +43,12 @@ export class CoinManager {
       tries++;
     } while (Math.abs(x) < SAFE_HALF + 5 && Math.abs(z) < SAFE_HALF + 5 && tries < 30);
 
-    const c = this.makeCoin(x, 0.8, z, 1);
+    const c = this.makeCoin(x, 0.8, z, FIELD_COIN_VALUE);
     c.userData.field = true;
   }
 
-  dropBurst(pos, total) {
-    const count = randInt(6, 10);
+  dropBurst(pos, total, forceCount) {
+    const count = forceCount || randInt(6, 10);
     const value = Math.max(1, Math.round(total / count));
     for (let i = 0; i < count; i++) {
       const ang = rand(0, Math.PI * 2);

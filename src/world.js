@@ -7,7 +7,7 @@ export class World {
     this.scene = scene;
     this.colliders = [];
     this.tentDoors = [];
-    this.shopPos = new THREE.Vector3(-30, 0, -30);
+    this.shopPos = new THREE.Vector3(-24, 0, -24);
 
     this.buildLights();
     this.buildGround();
@@ -59,7 +59,7 @@ export class World {
     this.scene.add(ground);
 
     const dtex = dirtTexture();
-    dtex.repeat.set(12, 12);
+    dtex.repeat.set(8, 8);
     const safeGround = new THREE.Mesh(
       new THREE.PlaneGeometry(SAFE_HALF * 2 - 2, SAFE_HALF * 2 - 2),
       new THREE.MeshLambertMaterial({ map: dtex })
@@ -165,8 +165,8 @@ export class World {
     const doorMat = new THREE.MeshBasicMaterial({ color: 0x14170f });
 
     const positions = [
-      [-38, 18], [-38, 0], [-38, -18],
-      [38, 18], [38, 0], [38, -18],
+      [-20, 14], [-20, 0], [-20, -14],
+      [20, 14], [20, 0], [20, -14],
     ];
 
     const halfW = 2.4, apexH = 3.0, depth = 6.5;
@@ -237,7 +237,7 @@ export class World {
 
   buildClouds() {
     const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 18; i++) {
       const cloud = new THREE.Group();
       const puffs = 3 + Math.floor(rand(0, 3));
       for (let p = 0; p < puffs; p++) {
@@ -270,10 +270,10 @@ export class World {
     const geo = new THREE.PlaneGeometry(1.4, 1.1);
     geo.translate(0, 0.55, 0);
     const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
-    const inst = new THREE.InstancedMesh(geo, mat, 900);
+    const inst = new THREE.InstancedMesh(geo, mat, 1400);
     const dummy = new THREE.Object3D();
     let placed = 0;
-    while (placed < 900) {
+    while (placed < 1400) {
       const x = rand(-MAP_HALF + 10, MAP_HALF - 10);
       const z = rand(-MAP_HALF + 10, MAP_HALF - 10);
       if (Math.abs(x) < SAFE_HALF + 3 && Math.abs(z) < SAFE_HALF + 3) continue;
@@ -355,7 +355,7 @@ export class World {
     ];
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x7d7f82, flatShading: true });
 
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 450; i++) {
       let x, z;
       do {
         x = rand(-MAP_HALF + 15, MAP_HALF - 15);

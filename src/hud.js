@@ -53,9 +53,13 @@ export class HUD {
   }
 
   killMessage(name, coins) {
+    this.notify(`${name} 처치! 코인 ${coins}개 드랍`);
+  }
+
+  notify(text) {
     const el = document.createElement('div');
     el.className = 'kill-msg';
-    el.textContent = `${name} 처치! 코인 ${coins}개 드랍`;
+    el.textContent = text;
     this.killFeed.appendChild(el);
     setTimeout(() => el.remove(), 2600);
     while (this.killFeed.children.length > 6) this.killFeed.firstChild.remove();

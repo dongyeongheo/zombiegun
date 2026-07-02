@@ -292,9 +292,34 @@ function buildSniper() {
   return g;
 }
 
+function buildRPG() {
+  const g = new THREE.Group();
+
+  g.add(cyl(0.05, 0.05, 0.85, M.gunmetal, 0, 0.03, -0.15, Math.PI / 2, 0, 0, 10));
+  g.add(cyl(0.065, 0.05, 0.16, M.darkSteel, 0, 0.03, 0.33, Math.PI / 2, 0, 0, 10));
+  g.add(cyl(0.055, 0.055, 0.05, M.black, 0, 0.03, -0.6, Math.PI / 2, 0, 0, 10));
+
+  const warhead = new THREE.Group();
+  warhead.add(cyl(0.075, 0.05, 0.18, M.black, 0, 0, 0, Math.PI / 2, 0, 0, 10));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.22, 10), M.darkSteel);
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.z = -0.2;
+  warhead.add(nose);
+  warhead.position.set(0, 0.03, -0.72);
+  g.add(warhead);
+
+  g.add(box(0.035, 0.09, 0.05, M.black, 0, -0.05, -0.05, 0.3));
+  g.add(box(0.035, 0.09, 0.05, M.black, 0, -0.05, -0.3, 0.15));
+  g.add(box(0.04, 0.05, 0.12, M.gunmetal, 0, 0.1, -0.1));
+  g.add(box(0.012, 0.05, 0.01, M.darkSteel, 0, 0.13, -0.35));
+  g.add(box(0.06, 0.03, 0.2, M.leather, 0, 0.085, 0.12));
+
+  return g;
+}
+
 const BUILDERS = {
   axe: buildAxe, bow: buildBow, sword: buildSword,
-  pistol: buildPistol, shotgun: buildShotgun, rifle: buildRifle, sniper: buildSniper,
+  pistol: buildPistol, shotgun: buildShotgun, rifle: buildRifle, rpg: buildRPG, sniper: buildSniper,
 };
 
 export class WeaponSystem {
@@ -440,7 +465,12 @@ export class WeaponSystem {
     this.camera.getWorldDirection(baseDir);
 
     if (def.projectile) {
-      this.spawnArrow(muzzle, baseDir, def);
+      if (def.rocket) {
+        this.spawnRocket(muzzle, baseDir, def);
+        this.effects.muzzleFlash(muzzle);
+      } else {
+        this.spawnArrow(muzzle, baseDir, def);
+      }
       if (this.mag <= 0) this.startReload();
       return;
     }
@@ -487,6 +517,41 @@ export class WeaponSystem {
     this.arrows.push({ mesh: g, vel, damage: def.damage, life: 5, stuck: 0 });
   }
 
+  spawnRocket(pos, dir, def) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 8), M.gunmetal);
+    body.rotation.x = Math.PI / 2;
+    g.add(body);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 8), M.darkSteel);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.z = -0.3;
+    g.add(nose);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.25, 6), new THREE.MeshBasicMaterial({ color: 0xffa33a }));
+    flame.rotation.x = Math.PI / 2;
+    flame.position.z = 0.3;
+    g.add(flame);
+    g.position.copy(pos);
+    const vel = dir.clone().multiplyScalar(def.arrowSpeed);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    this.scene.add(g);
+    this.arrows.push({ mesh: g, vel, damage: def.damage, life: 6, stuck: 0, rocket: true, blastRadius: def.blastRadius });
+  }
+
+  explode(pos, damage, radius, zm) {
+    this.effects.explosion(pos, radius);
+    for (const z of zm.zombies) {
+      if (z.dead) continue;
+      const zp = z.group.position;
+      const dx = pos.x - zp.x, dz = pos.z - zp.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d < radius + 0.8 * z.def.scale) {
+        const mult = Math.max(0.35, 1 - d / (radius + 0.8));
+        z.takeDamage(damage * mult, true);
+        this.effects.blood(zp.clone().setY(1.3), 3);
+      }
+    }
+  }
+
   updateArrows(dt, zm) {
     const fwd = new THREE.Vector3(0, 0, -1);
     for (let i = this.arrows.length - 1; i >= 0; i--) {
@@ -502,7 +567,7 @@ export class WeaponSystem {
       }
 
       a.life -= dt;
-      a.vel.y -= 3.5 * dt;
+      a.vel.y -= (a.rocket ? 1.5 : 3.5) * dt;
       a.mesh.position.addScaledVector(a.vel, dt);
       a.mesh.quaternion.setFromUnitVectors(fwd, a.vel.clone().normalize());
 
@@ -514,8 +579,12 @@ export class WeaponSystem {
         const dx = a.mesh.position.x - zp.x;
         const dz = a.mesh.position.z - zp.z;
         if (dx * dx + dz * dz < (0.75 * z.def.scale) ** 2 && Math.abs(dy) < 1.3 * z.def.scale) {
-          z.takeDamage(a.damage, true);
-          this.effects.blood(a.mesh.position, 5);
+          if (a.rocket) {
+            this.explode(a.mesh.position.clone(), a.damage, a.blastRadius, zm);
+          } else {
+            z.takeDamage(a.damage, true);
+            this.effects.blood(a.mesh.position, 5);
+          }
           hit = true;
           break;
         }
@@ -525,8 +594,14 @@ export class WeaponSystem {
         this.scene.remove(a.mesh);
         this.arrows.splice(i, 1);
       } else if (a.mesh.position.y <= 0.05) {
-        a.mesh.position.y = 0.05;
-        a.stuck = 2.5;
+        if (a.rocket) {
+          this.explode(a.mesh.position.clone(), a.damage, a.blastRadius, zm);
+          this.scene.remove(a.mesh);
+          this.arrows.splice(i, 1);
+        } else {
+          a.mesh.position.y = 0.05;
+          a.stuck = 2.5;
+        }
       }
     }
   }

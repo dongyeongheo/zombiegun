@@ -5,11 +5,13 @@ import { WeaponSystem } from './weapons.js';
 import { ZombieManager } from './zombies.js';
 import { SoldierManager } from './soldiers.js';
 import { CoinManager } from './coins.js';
+import { ChestManager } from './chests.js';
+import { VillagerManager } from './villagers.js';
 import { Inventory } from './inventory.js';
 import { Shop } from './shop.js';
 import { HUD } from './hud.js';
 import { Effects } from './effects.js';
-import { WEAPON_ORDER, GATE_Z } from './config.js';
+import { GATE_Z } from './config.js';
 import { randInt, distXZ } from './utils.js';
 import { isInsideSafeZone } from './world.js';
 
@@ -40,6 +42,8 @@ const weapons = new WeaponSystem(camera, scene, effects);
 const zombieManager = new ZombieManager(scene, world);
 const soldierManager = new SoldierManager(scene, effects, world);
 const coinManager = new CoinManager(scene);
+const chestManager = new ChestManager(scene);
+const villagerManager = new VillagerManager(scene, world);
 const shop = new Shop(inventory);
 const hud = new HUD();
 
@@ -67,6 +71,7 @@ const shopModal = document.getElementById('shop-modal');
 const invModal = document.getElementById('inv-modal');
 
 function uiOpen() { return shopOpen || invOpen; }
+inventory.isUIOpen = () => invOpen;
 
 function closeAllUI() {
   shopOpen = false;
@@ -92,15 +97,19 @@ function toggleInventory() {
   if (shopOpen) { shopOpen = false; shopModal.style.display = 'none'; }
   invOpen = !invOpen;
   invModal.style.display = invOpen ? 'block' : 'none';
+  document.body.classList.toggle('inv-open', invOpen);
   if (invOpen) {
     inventory.renderInventoryUI();
     document.exitPointerLock?.();
-  } else if (started && player.alive) {
-    canvas.requestPointerLock?.();
+  } else {
+    inventory.swapIdx = null;
+    inventory.renderHotbar();
+    if (started && player.alive) canvas.requestPointerLock?.();
   }
 }
 
 let nearShop = false;
+let nearChest = null;
 
 document.addEventListener('keydown', e => {
   if (!started) return;
@@ -109,16 +118,23 @@ document.addEventListener('keydown', e => {
     toggleInventory();
   } else if (e.code === 'KeyE') {
     if (shopOpen) toggleShop();
+    else if (nearChest && !uiOpen()) {
+      const total = chestManager.open(nearChest, coinManager);
+      if (total > 0) hud.notify(`상자 오픈! 코인 ${total}개`);
+    }
     else if (nearShop && !invOpen) toggleShop();
   } else if (e.code === 'Escape') {
     if (uiOpen()) closeAllUI();
   } else if (e.code.startsWith('Digit')) {
     const idx = parseInt(e.code.slice(5)) - 1;
-    const key = WEAPON_ORDER[idx];
-    if (key && inventory.ownedWeapons.includes(key)) {
-      inventory.equipWeapon(key);
-    }
+    const key = inventory.slotWeapon(idx);
+    if (key) inventory.equipWeapon(key);
   }
+});
+
+document.addEventListener('wheel', e => {
+  if (!started || uiOpen() || !player.alive) return;
+  inventory.cycleSlot(e.deltaY > 0 ? 1 : -1);
 });
 
 let started = false;
@@ -134,6 +150,8 @@ canvas.addEventListener('click', () => {
     canvas.requestPointerLock?.();
   }
 });
+
+window.__debug = { player, zombieManager };
 
 const clock = new THREE.Clock();
 
@@ -168,9 +186,14 @@ function animate() {
   coinManager.update(dt, player.pos, n => {
     inventory.addCoins(n);
   });
+  chestManager.update(dt);
+  villagerManager.update(dt);
 
   nearShop = distXZ(player.pos, world.shopPos) < 8;
-  if (nearShop && !ui && player.alive) {
+  nearChest = chestManager.nearestUnopened(player.pos);
+  if (nearChest && !ui && player.alive) {
+    hud.showHint('<b>E</b> 상자 열기');
+  } else if (nearShop && !ui && player.alive) {
     hud.showHint('<b>E</b> 상점 열기');
   } else {
     hud.hideHint();

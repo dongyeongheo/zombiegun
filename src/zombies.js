@@ -1,92 +1,88 @@
 import * as THREE from 'three';
-import { ZOMBIES, ZOMBIE_CAP, SPAWN_INTERVAL, INITIAL_SPAWNS, ATTACK_RANGE, LOSE_SIGHT_TIME, MAP_HALF, SAFE_HALF, GATE_WIDTH, GATE_Z } from './config.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ZOMBIES, ZOMBIE_CAP, SPAWN_INTERVAL, SPAWNS_PER_TICK, INITIAL_SPAWNS, ZOMBIE_CULL_DIST, ATTACK_RANGE, LOSE_SIGHT_TIME, MAP_HALF, SAFE_HALF, GATE_WIDTH, GATE_Z } from './config.js';
 import { rand, randInt, distXZ, angleToXZ, inFov } from './utils.js';
 import { isInsideSafeZone } from './world.js';
 
-const skinMats = {};
-function skinMat(color) {
-  if (!skinMats[color]) skinMats[color] = new THREE.MeshLambertMaterial({ color });
-  return skinMats[color];
-}
-const clothMat = new THREE.MeshLambertMaterial({ color: 0x3d3a35 });
-const clothMat2 = new THREE.MeshLambertMaterial({ color: 0x4a4238 });
-const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
-const leaderPadMat = new THREE.MeshLambertMaterial({ color: 0x2a2420 });
-const bruiserSpikeMat = new THREE.MeshLambertMaterial({ color: 0x38303f });
+const sharedMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const CLOTH = 0x3d3a35;
+const CLOTH2 = 0x4a4238;
+const EYE = 0xff2a1a;
+const JAW = 0x1a0808;
+const PAD = 0x2a2420;
+const SPIKE = 0x38303f;
 
-function buildZombieModel(type) {
+function colorize(geo, hex) {
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return geo;
+}
+
+function cBox(w, h, d, hex, x, y, z, rx = 0, ry = 0, rz = 0) {
+  const g = new THREE.BoxGeometry(w, h, d);
+  if (rx || ry || rz) { g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); }
+  g.translate(x, y, z);
+  return colorize(g, hex);
+}
+
+function cCone(r, h, seg, hex, x, y, z, rx = 0) {
+  const g = new THREE.ConeGeometry(r, h, seg);
+  if (rx) g.rotateX(rx);
+  g.translate(x, y, z);
+  return colorize(g, hex);
+}
+
+const typeAssets = {};
+function getTypeAssets(type) {
+  if (typeAssets[type]) return typeAssets[type];
   const def = ZOMBIES[type];
-  const g = new THREE.Group();
-  const skin = skinMat(def.color);
-  const darker = skinMat((def.color & 0xfefefe) >> 1);
+  const skin = def.color;
+  const darker = (def.color & 0xfefefe) >> 1;
 
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.85, 0.3), clothMat);
-  legL.position.set(-0.18, 0.425, 0);
-  const legR = legL.clone();
-  legR.position.x = 0.18;
-  g.add(legL, legR);
+  const parts = [
+    cBox(0.72, 0.9, 0.4, type === 'bruiser' || type === 'super' ? darker : CLOTH2, 0, 1.3, 0),
+    cBox(0.74, 0.4, 0.42, skin, 0, 1.55, 0),
+    cBox(0.46, 0.46, 0.46, skin, 0, 2.0, 0),
+    cBox(0.24, 0.06, 0.03, JAW, 0, 1.88, -0.235),
+  ];
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.9, 0.4), type === 'bruiser' ? darker : clothMat2);
-  torso.position.y = 1.3;
-  g.add(torso);
-
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.4, 0.42), skin);
-  chest.position.y = 1.55;
-  g.add(chest);
-
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.75), skin);
-  armL.position.set(-0.46, 1.5, -0.35);
-  const armR = armL.clone();
-  armR.position.x = 0.46;
-  g.add(armL, armR);
-
-  const handL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.18), darker);
-  handL.position.set(-0.46, 1.5, -0.78);
-  const handR = handL.clone();
-  handR.position.x = 0.46;
-  g.add(handL, handR);
-
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.46, 0.46), skin);
-  head.position.y = 2.0;
-  g.add(head);
-
+  const eyeW = type === 'super' ? 0.13 : 0.09;
   for (const ex of [-0.11, 0.11]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.02), eyeMat);
-    eye.position.set(ex, 2.05, -0.24);
-    g.add(eye);
+    parts.push(cBox(eyeW, 0.06, 0.02, EYE, ex, 2.05, -0.24));
   }
 
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.03), new THREE.MeshBasicMaterial({ color: 0x1a0808 }));
-  jaw.position.set(0, 1.88, -0.235);
-  g.add(jaw);
-
-  if (type === 'leader' || type === 'alpha') {
+  if (type === 'leader' || type === 'alpha' || type === 'super') {
     for (const sx of [-0.42, 0.42]) {
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.44), leaderPadMat);
-      pad.position.set(sx, 1.72, 0);
-      g.add(pad);
+      parts.push(cBox(0.26, 0.16, 0.44, PAD, sx, 1.72, 0));
     }
-    const crest = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 4), type === 'alpha' ? eyeMat : leaderPadMat);
-    crest.position.set(0, 2.36, 0);
-    g.add(crest);
+    parts.push(cCone(0.1, 0.3, 4, type === 'leader' ? PAD : EYE, 0, 2.36, 0));
   }
 
-  if (type === 'bruiser') {
+  if (type === 'bruiser' || type === 'super') {
     for (const [sx, sy] of [[-0.3, 1.75], [0, 1.85], [0.3, 1.75]]) {
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.35, 4), bruiserSpikeMat);
-      spike.position.set(sx, sy, 0.18);
-      spike.rotation.x = 0.5;
-      g.add(spike);
+      parts.push(cCone(0.09, 0.35, 4, SPIKE, sx, sy, 0.18, 0.5));
     }
   }
 
-  g.rotation.y = Math.PI;
-  const outer = new THREE.Group();
-  outer.add(g);
-  outer.scale.setScalar(def.scale);
-  outer.userData.limbs = { legL, legR, armL, armR };
-  return outer;
+  const staticGeo = mergeGeometries(parts);
+  staticGeo.rotateY(Math.PI);
+
+  const armGeo = mergeGeometries([
+    cBox(0.2, 0.2, 0.75, skin, 0, 0, 0),
+    cBox(0.16, 0.16, 0.18, darker, 0, 0, -0.43),
+  ]);
+
+  typeAssets[type] = { staticGeo, armGeo };
+  return typeAssets[type];
 }
+
+const legGeo = colorize(new THREE.BoxGeometry(0.28, 0.85, 0.3), CLOTH);
+const hitboxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
 
 function makeHpBar() {
   const c = document.createElement('canvas');
@@ -101,11 +97,8 @@ function makeHpBar() {
   return { sprite, canvas: c, ctx, tex };
 }
 
-let zombieIdCounter = 0;
-
 export class Zombie {
   constructor(type, x, z, scene) {
-    this.id = zombieIdCounter++;
     this.type = type;
     this.def = ZOMBIES[type];
     this.hp = this.def.hp;
@@ -113,15 +106,32 @@ export class Zombie {
     this.dead = false;
     this.scene = scene;
 
-    this.group = buildZombieModel(type);
+    const assets = getTypeAssets(type);
+    this.group = new THREE.Group();
     this.group.position.set(x, 0, z);
+    this.group.scale.setScalar(this.def.scale);
+
+    const staticMesh = new THREE.Mesh(assets.staticGeo, sharedMat);
+    this.group.add(staticMesh);
+
+    const inner = new THREE.Group();
+    inner.rotation.y = Math.PI;
+    const legL = new THREE.Mesh(legGeo, sharedMat);
+    legL.position.set(-0.18, 0.425, 0);
+    const legR = new THREE.Mesh(legGeo, sharedMat);
+    legR.position.set(0.18, 0.425, 0);
+    const armL = new THREE.Mesh(assets.armGeo, sharedMat);
+    armL.position.set(-0.46, 1.5, -0.35);
+    const armR = new THREE.Mesh(assets.armGeo, sharedMat);
+    armR.position.set(0.46, 1.5, -0.35);
+    inner.add(legL, legR, armL, armR);
+    this.group.add(inner);
+    this.limbs = { legL, legR, armL, armR };
+
     scene.add(this.group);
 
-    const h = 2.3 * this.def.scale;
-    this.hitbox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.9 * this.def.scale, h, 0.9 * this.def.scale),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
-    );
+    const h = 2.3;
+    this.hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.9, h, 0.9), hitboxMat);
     this.hitbox.position.y = h / 2;
     this.hitbox.userData.zombie = this;
     this.group.add(this.hitbox);
@@ -138,7 +148,7 @@ export class Zombie {
     this.loseTimer = 0;
     this.atkCooldown = 0;
     this.walkPhase = rand(0, Math.PI * 2);
-    this.perceptionTimer = rand(0, 0.15);
+    this.perceptionTimer = rand(0, 0.2);
 
     this.leader = null;
     this.followers = [];
@@ -155,11 +165,25 @@ export class Zombie {
       this.loseTimer = 0;
       this.state = 'chase';
     }
+    this.alertPack();
     if (this.hp <= 0) this.die();
   }
 
+  alertPack() {
+    const packLeader = this.leader && !this.leader.dead ? this.leader : (this.followers.length ? this : null);
+    if (!packLeader) return;
+    const pack = [packLeader, ...packLeader.followers];
+    for (const p of pack) {
+      if (p.dead || p === this) continue;
+      if (p.state === 'wander') {
+        p.state = 'chase';
+        p.loseTimer = 0;
+      }
+    }
+  }
+
   updateHpBar() {
-    const { ctx, canvas, tex } = this.hpBar;
+    const { ctx, tex } = this.hpBar;
     ctx.clearRect(0, 0, 64, 8);
     ctx.fillStyle = 'rgba(20,20,20,0.7)';
     ctx.fillRect(0, 0, 64, 8);
@@ -182,14 +206,13 @@ export class Zombie {
     }
   }
 
-  update(dt, candidates, world) {
+  update(dt, candidates, world, nearPlayer) {
     if (this.dead) return;
     this.atkCooldown -= dt;
-    this.walkPhase += dt * this.def.speed * 1.6;
 
     this.perceptionTimer -= dt;
     if (this.perceptionTimer <= 0) {
-      this.perceptionTimer = 0.15;
+      this.perceptionTimer = 0.2;
       this.perceive(candidates);
     }
 
@@ -221,7 +244,7 @@ export class Zombie {
           this.target.damage(this.def.damage);
         }
       } else {
-        this.moveToward(goal, this.def.speed, dt, world);
+        this.moveToward(goal, this.def.speed, dt, world, nearPlayer);
       }
 
       if (!inFov(pos, this.yaw(), tpos, 360, this.def.sight * 1.4)) {
@@ -244,23 +267,25 @@ export class Zombie {
       } else if (this.wanderTimer <= 0 || distXZ(pos, wt) < 2) {
         this.wanderTimer = rand(4, 9);
         this.wanderTarget = {
-          x: Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.x + rand(-30, 30))),
-          z: Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.z + rand(-30, 30))),
+          x: Math.max(-MAP_HALF + 15, Math.min(MAP_HALF - 15, pos.x + rand(-30, 30))),
+          z: Math.max(-MAP_HALF + 15, Math.min(MAP_HALF - 15, pos.z + rand(-30, 30))),
         };
         wt = this.wanderTarget;
       }
 
       if (distXZ(pos, wt) > 1.5) {
-        this.moveToward(wt, this.def.speed * 0.45, dt, world);
+        this.moveToward(wt, this.def.speed * 0.45, dt, world, nearPlayer);
       }
     }
 
-    const limbs = this.group.userData.limbs;
-    const swing = Math.sin(this.walkPhase) * 0.5;
-    limbs.legL.rotation.x = swing;
-    limbs.legR.rotation.x = -swing;
-    limbs.armL.rotation.x = swing * 0.15;
-    limbs.armR.rotation.x = -swing * 0.15;
+    if (nearPlayer) {
+      this.walkPhase += dt * this.def.speed * 1.6;
+      const swing = Math.sin(this.walkPhase) * 0.5;
+      this.limbs.legL.rotation.x = swing;
+      this.limbs.legR.rotation.x = -swing;
+      this.limbs.armL.rotation.x = swing * 0.15;
+      this.limbs.armR.rotation.x = -swing * 0.15;
+    }
   }
 
   perceive(candidates) {
@@ -293,21 +318,24 @@ export class Zombie {
     this.group.rotation.y += diff * Math.min(1, dt * 8);
   }
 
-  moveToward(goal, speed, dt, world) {
+  moveToward(goal, speed, dt, world, nearPlayer) {
     this.faceToward(goal, dt);
     const pos = this.group.position;
     const ang = angleToXZ(pos, goal);
     pos.x += Math.sin(ang) * speed * dt;
     pos.z += Math.cos(ang) * speed * dt;
-    world.resolveCollision(pos, 0.5 * this.def.scale);
+    if (nearPlayer) {
+      world.resolveCollision(pos, 0.5 * this.def.scale);
+    } else {
+      pos.x = Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.x));
+      pos.z = Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.z));
+    }
   }
 
   dispose() {
     this.scene.remove(this.group);
-    this.group.traverse(o => {
-      if (o.isMesh) o.geometry.dispose();
-    });
     this.hpBar.tex.dispose();
+    this.hpBar.sprite.material.dispose();
   }
 }
 
@@ -325,7 +353,7 @@ export class ZombieManager {
     let tries = 0;
     do {
       const ang = rand(0, Math.PI * 2);
-      const dist = rand(70, 160);
+      const dist = rand(70, 180);
       x = center.x + Math.sin(ang) * dist;
       z = center.z + Math.cos(ang) * dist;
       x = Math.max(-MAP_HALF + 20, Math.min(MAP_HALF - 20, x));
@@ -375,7 +403,9 @@ export class ZombieManager {
       }
     } else if (roll < 0.3) {
       this.spawn('bruiser', x, z);
-    } else if (roll < 0.55) {
+    } else if (roll < 0.35) {
+      this.spawn('super', x, z);
+    } else if (roll < 0.6) {
       this.spawn('runner', x, z);
     } else {
       this.spawn('walker', x, z);
@@ -386,7 +416,7 @@ export class ZombieManager {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = SPAWN_INTERVAL;
-      this.spawnGroup(playerPos);
+      for (let i = 0; i < SPAWNS_PER_TICK; i++) this.spawnGroup(playerPos);
     }
 
     for (let i = this.zombies.length - 1; i >= 0; i--) {
@@ -397,7 +427,14 @@ export class ZombieManager {
         this.zombies.splice(i, 1);
         continue;
       }
-      z.update(dt, candidates, this.world);
+      const d = distXZ(z.group.position, playerPos);
+      if (d > ZOMBIE_CULL_DIST && z.state === 'wander') {
+        z.die();
+        z.dispose();
+        this.zombies.splice(i, 1);
+        continue;
+      }
+      z.update(dt, candidates, this.world, d < 130);
     }
   }
 }

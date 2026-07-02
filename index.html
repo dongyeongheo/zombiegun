@@ -77,6 +77,25 @@
     opacity: 0; transition: opacity 0.4s;
   }
 
+  #hotbar {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 22;
+  }
+  .hotbar-slot {
+    width: 56px; height: 56px; border-radius: 9px; position: relative;
+    background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.22);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 13px; cursor: default;
+    text-shadow: 0 1px 2px #000;
+  }
+  .hotbar-slot .num {
+    position: absolute; top: 2px; left: 5px; font-size: 10px; opacity: 0.55; font-weight: 600;
+  }
+  .hotbar-slot.active { border-color: #ffd24a; background: rgba(70,56,12,0.65); }
+  .hotbar-slot.unowned { opacity: 0.35; }
+  .hotbar-slot.swap-src { border-color: #6fdc7f; background: rgba(20,70,30,0.6); }
+  body.inv-open .hotbar-slot { cursor: pointer; }
+
   #compass {
     position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
     z-index: 20; pointer-events: none; text-align: center;
@@ -196,6 +215,8 @@
   <div id="compass-label">안전구역</div>
 </div>
 
+<div id="hotbar"></div>
+
 <div id="interact-hint"></div>
 <div id="alert-banner">⚠ 안전구역에 좀비 접근! 지원 병력 출동</div>
 <div id="kill-feed"></div>
@@ -210,7 +231,7 @@
 <div id="inv-modal" class="modal">
   <span class="close-hint">Tab 또는 ESC로 닫기</span>
   <h2>인벤토리</h2>
-  <div class="sub">보유 장비를 클릭해서 장착</div>
+  <div class="sub">보유 장비를 클릭해서 장착 · 하단 핫바 슬롯 두 개를 클릭하면 위치 교체</div>
   <div id="inv-grid" class="shop-grid"></div>
 </div>
 
@@ -230,7 +251,10 @@
 </div>
 
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 <script type="module" src="./src/main.js"></script>
 </body>

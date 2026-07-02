@@ -22,7 +22,7 @@ export class Shop {
       const stat = def.type === 'melee'
         ? `근접 · 데미지 ${def.damage} · 공격간격 ${def.interval}초`
         : `데미지 ${def.damage} · 탄창 ${def.mag}발 · 재장전 ${def.reload}초`;
-      const extra = def.pellets ? ' · 산탄' : def.pierce ? ' · 관통' : def.auto ? ' · 자동연사' : '';
+      const extra = def.pellets ? ' · 산탄' : def.pierce ? ' · 관통' : def.auto ? ' · 자동연사' : def.rocket ? ' · 광역폭발' : def.projectile ? ' · 투사체' : '';
       card.innerHTML = `<div class="info"><div class="name">${def.name}</div><div class="desc">${stat}${extra}</div></div>`;
       const btn = document.createElement('button');
       if (this.inv.ownedWeapons.includes(key)) {

@@ -1,4 +1,4 @@
-import { WEAPONS, WEAPON_ORDER, ARMORS, ARMOR_ORDER } from './config.js';
+import { WEAPONS, WEAPON_ORDER, WEAPON_SHORT, ARMORS, ARMOR_ORDER } from './config.js';
 
 const SAVE_KEY = 'zombiegun_save_v1';
 
@@ -10,8 +10,66 @@ export class Inventory {
     this.equippedWeapon = 'axe';
     this.equippedBody = null;
     this.equippedHead = null;
+    this.hotbar = [...WEAPON_ORDER];
     this.onEquipWeapon = null;
+    this.swapIdx = null;
+    this.isUIOpen = () => false;
     this.load();
+    this.initHotbar();
+  }
+
+  initHotbar() {
+    const bar = document.getElementById('hotbar');
+    this.slotEls = [];
+    for (let i = 0; i < WEAPON_ORDER.length; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'hotbar-slot';
+      slot.innerHTML = `<span class="num">${i + 1}</span><span class="label"></span>`;
+      slot.addEventListener('click', () => this.hotbarClick(i));
+      bar.appendChild(slot);
+      this.slotEls.push(slot);
+    }
+    this.renderHotbar();
+  }
+
+  hotbarClick(i) {
+    if (!this.isUIOpen()) return;
+    if (this.swapIdx === null) {
+      this.swapIdx = i;
+    } else {
+      const tmp = this.hotbar[this.swapIdx];
+      this.hotbar[this.swapIdx] = this.hotbar[i];
+      this.hotbar[i] = tmp;
+      this.swapIdx = null;
+      this.save();
+    }
+    this.renderHotbar();
+  }
+
+  renderHotbar() {
+    for (let i = 0; i < this.slotEls.length; i++) {
+      const key = this.hotbar[i];
+      const el = this.slotEls[i];
+      el.querySelector('.label').textContent = key ? WEAPON_SHORT[key] : '';
+      el.classList.toggle('active', key === this.equippedWeapon);
+      el.classList.toggle('unowned', !key || !this.ownedWeapons.includes(key));
+      el.classList.toggle('swap-src', this.swapIdx === i);
+    }
+  }
+
+  slotWeapon(i) {
+    const key = this.hotbar[i];
+    return key && this.ownedWeapons.includes(key) ? key : null;
+  }
+
+  cycleSlot(dirSign) {
+    const cur = this.hotbar.indexOf(this.equippedWeapon);
+    const n = this.hotbar.length;
+    for (let step = 1; step <= n; step++) {
+      const idx = ((cur + dirSign * step) % n + n) % n;
+      const key = this.slotWeapon(idx);
+      if (key) { this.equipWeapon(key); return; }
+    }
   }
 
   save() {
@@ -22,6 +80,7 @@ export class Inventory {
       equippedWeapon: this.equippedWeapon,
       equippedBody: this.equippedBody,
       equippedHead: this.equippedHead,
+      hotbar: this.hotbar,
     }));
   }
 
@@ -35,6 +94,17 @@ export class Inventory {
       this.equippedWeapon = data.equippedWeapon || 'axe';
       this.equippedBody = data.equippedBody || null;
       this.equippedHead = data.equippedHead || null;
+      if (Array.isArray(data.hotbar)) {
+        this.hotbar = WEAPON_ORDER.map((k, i) =>
+          data.hotbar[i] && WEAPONS[data.hotbar[i]] ? data.hotbar[i] : null
+        );
+        for (const k of WEAPON_ORDER) {
+          if (!this.hotbar.includes(k)) {
+            const empty = this.hotbar.indexOf(null);
+            if (empty >= 0) this.hotbar[empty] = k;
+          }
+        }
+      }
     } catch (e) { /* corrupt save */ }
   }
 
@@ -56,6 +126,7 @@ export class Inventory {
     this.coins -= def.price;
     this.ownedWeapons.push(key);
     this.save();
+    this.renderHotbar();
     return true;
   }
 
@@ -73,6 +144,7 @@ export class Inventory {
     this.equippedWeapon = key;
     if (this.onEquipWeapon) this.onEquipWeapon(key);
     this.save();
+    this.renderHotbar();
   }
 
   equipArmor(key) {
