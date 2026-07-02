@@ -15,6 +15,7 @@ export class World {
     this.buildTents();
     this.buildShop();
     this.buildNature();
+    this.buildBorderWall();
     this.buildClouds();
     this.buildGrass();
   }
@@ -354,7 +355,7 @@ export class World {
     ];
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x7d7f82, flatShading: true });
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 300; i++) {
       let x, z;
       do {
         x = rand(-MAP_HALF + 15, MAP_HALF - 15);
@@ -394,6 +395,28 @@ export class World {
     }
   }
 
+  buildBorderWall() {
+    const rockMats = [
+      new THREE.MeshLambertMaterial({ color: 0x6e7073, flatShading: true }),
+      new THREE.MeshLambertMaterial({ color: 0x7d7f82, flatShading: true }),
+      new THREE.MeshLambertMaterial({ color: 0x5c5e61, flatShading: true }),
+    ];
+    const edge = MAP_HALF - 4;
+    const step = 7;
+    let idx = 0;
+    for (let t = -MAP_HALF; t <= MAP_HALF; t += step) {
+      for (const [x, z] of [[t, -edge], [t, edge], [-edge, t], [edge, t]]) {
+        const s = rand(4, 7);
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMats[idx % 3]);
+        rock.position.set(x + rand(-2, 2), s * rand(0.35, 0.55), z + rand(-2, 2));
+        rock.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+        rock.castShadow = true;
+        this.scene.add(rock);
+        idx++;
+      }
+    }
+  }
+
   resolveCollision(pos, radius) {
     for (const c of this.colliders) {
       const dx = pos.x - c.x;
@@ -424,8 +447,8 @@ export class World {
       pos.x = pos.x > -half ? -half + m : -half - m;
     }
 
-    pos.x = Math.max(-MAP_HALF + 2, Math.min(MAP_HALF - 2, pos.x));
-    pos.z = Math.max(-MAP_HALF + 2, Math.min(MAP_HALF - 2, pos.z));
+    pos.x = Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.x));
+    pos.z = Math.max(-MAP_HALF + 10, Math.min(MAP_HALF - 10, pos.z));
   }
 }
 

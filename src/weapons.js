@@ -30,23 +30,23 @@ function cyl(rTop, rBot, h, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, se
 
 function buildAxe() {
   const g = new THREE.Group();
-  g.add(cyl(0.026, 0.034, 0.78, M.darkWood, 0, 0, -0.15, Math.PI / 2));
-  g.add(cyl(0.036, 0.036, 0.06, M.leather, 0, 0, 0.1, Math.PI / 2));
-  g.add(cyl(0.036, 0.036, 0.06, M.leather, 0, 0, 0.02, Math.PI / 2));
-  g.add(cyl(0.04, 0.04, 0.03, M.darkSteel, 0, 0, 0.24, Math.PI / 2));
+  g.add(cyl(0.026, 0.034, 0.72, M.darkWood, 0, 0.05, 0));
+  g.add(cyl(0.036, 0.036, 0.06, M.leather, 0, -0.2, 0));
+  g.add(cyl(0.036, 0.036, 0.06, M.leather, 0, -0.28, 0));
+  g.add(cyl(0.04, 0.04, 0.03, M.darkSteel, 0, -0.33, 0));
 
-  g.add(box(0.05, 0.1, 0.15, M.gunmetal, 0, 0.01, -0.5));
-  g.add(box(0.026, 0.24, 0.1, M.steel, 0, 0.01, -0.6, 0, 0, 0));
-  g.add(box(0.01, 0.3, 0.035, M.edge, 0, 0.01, -0.655));
+  g.add(box(0.05, 0.15, 0.1, M.gunmetal, 0, 0.38, 0));
+  g.add(box(0.026, 0.1, 0.24, M.steel, 0, 0.38, -0.1));
+  g.add(box(0.01, 0.035, 0.3, M.edge, 0, 0.38, -0.155));
   const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.12, 4), M.gunmetal);
   spike.rotation.x = Math.PI / 2;
-  spike.rotation.y = Math.PI / 4;
-  spike.position.set(0, 0.01, -0.4);
+  spike.rotation.z = Math.PI / 4;
+  spike.position.set(0, 0.38, 0.1);
   g.add(spike);
-  g.add(cyl(0.03, 0.03, 0.05, M.darkSteel, 0, 0.06, -0.5));
+  g.add(cyl(0.03, 0.03, 0.05, M.darkSteel, 0, 0.47, 0));
 
-  g.scale.setScalar(0.72);
-  g.userData.baseZ = 0.35;
+  g.scale.setScalar(0.78);
+  g.userData.baseZ = 0;
   return g;
 }
 
@@ -75,15 +75,15 @@ function buildBow() {
   g.add(new THREE.Line(stringGeo, new THREE.LineBasicMaterial({ color: 0xe8e4d8 })));
 
   const arrow = new THREE.Group();
-  arrow.add(cyl(0.007, 0.007, 0.6, M.wood, 0, 0, -0.04, Math.PI / 2));
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 4), M.steel);
+  arrow.add(cyl(0.007, 0.007, 0.62, M.wood, 0, 0, -0.08, Math.PI / 2));
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.09, 4), M.brightSteel);
   tip.rotation.x = -Math.PI / 2;
-  tip.position.z = -0.37;
+  tip.position.z = -0.43;
   arrow.add(tip);
-  const fletchMat = new THREE.MeshLambertMaterial({ color: 0xd04a3a, side: THREE.DoubleSide });
+  const fletchMat = new THREE.MeshLambertMaterial({ color: 0xe8e4d8, side: THREE.DoubleSide });
   for (let i = 0; i < 3; i++) {
     const ang = (i / 3) * Math.PI * 2;
-    const f = box(0.001, 0.026, 0.05, fletchMat, Math.sin(ang) * 0.014, Math.cos(ang) * 0.014, 0.22);
+    const f = box(0.001, 0.02, 0.04, fletchMat, Math.sin(ang) * 0.012, Math.cos(ang) * 0.012, 0.2);
     f.rotation.z = ang;
     arrow.add(f);
   }
@@ -325,6 +325,7 @@ export class WeaponSystem {
     this.recoilAnim = 0;
     this.mouseDown = false;
     this.bobTime = 0;
+    this.arrows = [];
 
     document.addEventListener('mousedown', e => { if (e.button === 0) this.mouseDown = true; });
     document.addEventListener('mouseup', e => { if (e.button === 0) { this.mouseDown = false; this._firedThisPress = false; } });
@@ -355,6 +356,7 @@ export class WeaponSystem {
     const def = this.def;
     this.cooldown -= dt;
     this.bobTime += dt * (moving ? 9 : 2);
+    this.updateArrows(dt, zombieManager);
 
     if (this.reloading) {
       this.reloadTimer += dt;
@@ -432,11 +434,18 @@ export class WeaponSystem {
     this.mag--;
     this.recoilAnim = 1;
     const muzzle = this.muzzleWorldPos();
-    this.effects.muzzleFlash(muzzle);
 
     const origin = this.camera.position.clone();
     const baseDir = new THREE.Vector3();
     this.camera.getWorldDirection(baseDir);
+
+    if (def.projectile) {
+      this.spawnArrow(muzzle, baseDir, def);
+      if (this.mag <= 0) this.startReload();
+      return;
+    }
+
+    this.effects.muzzleFlash(muzzle);
 
     if (def.pellets) {
       for (let i = 0; i < def.pellets; i++) {
@@ -452,6 +461,74 @@ export class WeaponSystem {
     }
 
     if (this.mag <= 0) this.startReload();
+  }
+
+  spawnArrow(pos, dir, def) {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.75, 5), M.wood);
+    shaft.rotation.x = Math.PI / 2;
+    g.add(shaft);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.12, 4), M.brightSteel);
+    tip.rotation.x = -Math.PI / 2;
+    tip.position.z = -0.42;
+    g.add(tip);
+    const fletchMat = new THREE.MeshLambertMaterial({ color: 0xe8e4d8, side: THREE.DoubleSide });
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2;
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.09), fletchMat);
+      f.position.set(Math.sin(ang) * 0.02, Math.cos(ang) * 0.02, 0.32);
+      f.rotation.z = ang;
+      g.add(f);
+    }
+    g.position.copy(pos);
+    const vel = dir.clone().multiplyScalar(def.arrowSpeed);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    this.scene.add(g);
+    this.arrows.push({ mesh: g, vel, damage: def.damage, life: 5, stuck: 0 });
+  }
+
+  updateArrows(dt, zm) {
+    const fwd = new THREE.Vector3(0, 0, -1);
+    for (let i = this.arrows.length - 1; i >= 0; i--) {
+      const a = this.arrows[i];
+
+      if (a.stuck > 0) {
+        a.stuck -= dt;
+        if (a.stuck <= 0) {
+          this.scene.remove(a.mesh);
+          this.arrows.splice(i, 1);
+        }
+        continue;
+      }
+
+      a.life -= dt;
+      a.vel.y -= 3.5 * dt;
+      a.mesh.position.addScaledVector(a.vel, dt);
+      a.mesh.quaternion.setFromUnitVectors(fwd, a.vel.clone().normalize());
+
+      let hit = false;
+      for (const z of zm.zombies) {
+        if (z.dead) continue;
+        const zp = z.group.position;
+        const dy = a.mesh.position.y - 1.2 * z.def.scale;
+        const dx = a.mesh.position.x - zp.x;
+        const dz = a.mesh.position.z - zp.z;
+        if (dx * dx + dz * dz < (0.75 * z.def.scale) ** 2 && Math.abs(dy) < 1.3 * z.def.scale) {
+          z.takeDamage(a.damage, true);
+          this.effects.blood(a.mesh.position, 5);
+          hit = true;
+          break;
+        }
+      }
+
+      if (hit || a.life <= 0) {
+        this.scene.remove(a.mesh);
+        this.arrows.splice(i, 1);
+      } else if (a.mesh.position.y <= 0.05) {
+        a.mesh.position.y = 0.05;
+        a.stuck = 2.5;
+      }
+    }
   }
 
   hitscan(origin, dir, muzzle, zm, damage, pierce, falloff) {

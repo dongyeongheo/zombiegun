@@ -18,7 +18,7 @@ export const PLAYER = {
 
 export const WEAPONS = {
   axe:     { name: '도끼',        price: 0,     type: 'melee',  damage: 15,   interval: 0.8, range: 3.0 },
-  bow:     { name: '활',          price: 50,    type: 'ranged', damage: 20,   interval: 0.1, mag: 1,  reload: 0.7, auto: false },
+  bow:     { name: '활',          price: 50,    type: 'ranged', damage: 20,   interval: 0.1, mag: 1,  reload: 0.7, auto: false, projectile: true, arrowSpeed: 42 },
   sword:   { name: '대검',        price: 200,   type: 'melee',  damage: 35,   interval: 1.2, range: 3.4 },
   pistol:  { name: '.22구경',     price: 1000,  type: 'ranged', damage: 15,   interval: 0.3, mag: 7,  reload: 2,   auto: false },
   shotgun: { name: '더블배럴샷건', price: 2000,  type: 'ranged', damage: 80,   interval: 0.5, mag: 2,  reload: 1.5, auto: false, pellets: 8 },
@@ -45,9 +45,9 @@ export const ZOMBIES = {
   bruiser: { name: '브루저',   hp: 500, atkInterval: 1,   damage: 25, speed: 6,   coin: [80, 120], scale: 1.55, color: 0x5c4a6e, sight: 40, fov: 110 },
 };
 
-export const ZOMBIE_CAP = 60;
-export const SPAWN_INTERVAL = 2;
-export const INITIAL_SPAWNS = 14;
+export const ZOMBIE_CAP = 100;
+export const SPAWN_INTERVAL = 1.2;
+export const INITIAL_SPAWNS = 25;
 export const ATTACK_RANGE = 2.4;
 export const LOSE_SIGHT_TIME = 4;
 
@@ -56,12 +56,12 @@ export const COIN_RESPAWN = 1.5;
 export const COIN_PICKUP_RADIUS = 2.2;
 
 export const SOLDIER = {
-  arDamage: 40,
-  arInterval: 0.13,
-  arRange: 55,
-  sniperDamage: 1000,
-  sniperInterval: 1.2,
-  sniperRange: 95,
+  arDamage: 12,
+  arInterval: 0.18,
+  arRange: 32,
+  sniperDamage: 250,
+  sniperInterval: 1.8,
+  sniperRange: 60,
   patrolSpeed: 3,
   deploySpeed: 9,
   alertDist: 30,

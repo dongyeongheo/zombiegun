@@ -115,7 +115,6 @@ export class Zombie {
 
     this.group = buildZombieModel(type);
     this.group.position.set(x, 0, z);
-    this.group.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(this.group);
 
     const h = 2.3 * this.def.scale;
